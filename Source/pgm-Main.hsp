@@ -1,0 +1,641 @@
+
+	development_mode = 0 // 開発モード (0:オフ／製品用 , 1:オン／開発用)
+
+	if development_mode = 1 {
+		delete "hsptmp"
+		delete "obj"
+	}
+
+//================================================================
+// 定義
+//================================================================
+
+// データ
+//----------------------------------------------------------------
+
+	#packopt name "Dice"
+	#packopt icon "bin-Icon.ico"
+
+	#pack "pgm-Main.hsp"
+
+	#pack "tex-Dice.bmp"
+
+	#pack "snd-Shuffle.wav"
+	#pack "snd-Stop.wav"
+	#pack "snd-Reset.wav"
+
+// その他
+//----------------------------------------------------------------
+
+	title_name = "Dice" // タイトル
+	version = "1.0.0" // バージョン
+	font_name = "Courier" // フォント
+
+	#define ChipSize 16 // チップのサイズ
+	#define MapSizeX 20 // マップのXサイズ
+	#define MapSizeY 15 // マップのYサイズ
+
+	#include "mod-waitFPS.hsp"
+
+//================================================================
+// 画面データ
+//================================================================
+
+	randomize
+
+ 	// 画面サイズ : 320(16*20)*240(16*15)
+
+	winX = ChipSize*MapSizeX
+	winY = ChipSize*MapSizeY
+
+	// 画面ポジション : ディスプレイの中央
+
+	posX = (ginfo_dispx-winX)/2
+	posY = (ginfo_dispy-winY)/2
+
+	screen 0 , winX,winY , 0 , posX,posY
+	title title_name
+
+	font font_name , 16
+
+//================================================================
+// 定義
+//================================================================
+
+// 画像関係
+//----------------------------------------------------------------
+
+	buffer 1 // サイコロのテクスチャー
+	picload "tex-Dice.bmp"
+	gsel 0
+
+// 音楽関係
+//----------------------------------------------------------------
+
+	mmload "snd-Shuffle.wav" , 1 , 0 // シャッフルの音
+	mmvol 1 , -500
+
+	mmload "snd-Stop.wav" , 2 , 0 // ストップの音
+	mmvol 2 , -500
+
+	mmload "snd-Reset.wav" , 3 , 0 // リセットの音
+	mmvol 3 , -500
+
+//================================================================
+// 初期設定
+//================================================================
+
+	fps_config 60
+
+	object = 1 // サイコロの数
+
+	dice_1 = 0 // サイコロ1の値
+	dice_2 = 0 // サイコロ2の値
+	dice_3 = 0 // サイコロ3の値
+	dice_4 = 0 // サイコロ4の値
+	dice_5 = 0 // サイコロ5の値
+	dice_6 = 0 // サイコロ6の値
+	dice_7 = 0 // サイコロ7の値
+	dice_8 = 0 // サイコロ8の値
+	dice_9 = 0 // サイコロ9の値
+
+	total = 0
+	special = 0
+
+	shuffle = 0 // サイコロをシャッフル
+
+	frame = 0
+	sound_frame = 0
+
+	stop_trigger = 0
+
+	description = 1
+
+//================================================================
+// 画面初期化
+//================================================================
+
+	redraw 0
+
+	color 0,0,0 // 背景を塗り潰す
+	boxf
+
+	mmplay 3
+
+	redraw 1
+
+//================================================================
+// メイン
+//================================================================
+
+*Main
+
+	redraw 0
+
+	color 255,255,255 // 背景を塗り潰す
+	boxf
+
+	if ginfo(2) != -1 {
+		gosub *shuffleDice // サイコロをシャッフル
+		gosub *commandDice // 操作
+	}
+	gosub *drawDice // サイコロを描写
+	gosub *sumDice // トータルを計算
+
+	if description = 1 { // 説明文を描写
+		color 128,0,0
+		pos 0*ChipSize,0*ChipSize
+		mes "[<-] [->] Change Number of Dice"
+		pos 0*ChipSize,1*ChipSize
+		mes "[SPACE] Shuffle Dice(s)"
+		pos 0*ChipSize,2*ChipSize
+		mes "[ENTER] Reset Dice(s)"
+		pos 0*ChipSize,3*ChipSize
+		mes "[ESC] Hide/Show Description"
+		color 0,0,0
+		pos 0*ChipSize,12*ChipSize
+		mes "                     Black : Normal"
+		color 255,0,0
+		pos 0*ChipSize,13*ChipSize
+		mes "                       Red : Double"
+		color 0,0,255
+		pos 0*ChipSize,14*ChipSize
+		mes "                      Blue :  Prime"
+	}
+
+	fps_wait
+
+	redraw 1
+
+goto *Main
+
+//================================================================
+// トータルを計算
+//================================================================
+
+*sumDice
+
+	if shuffle = 1 { // 合計を計算
+		total = 0
+		if object >= 1 { total += dice_1+1
+		if object >= 2 { total += dice_2+1
+		if object >= 3 { total += dice_3+1
+		if object >= 4 { total += dice_4+1
+		if object >= 5 { total += dice_5+1
+		if object >= 6 { total += dice_6+1
+		if object >= 7 { total += dice_7+1
+		if object >= 8 { total += dice_8+1
+		if object >= 9 { total += dice_9+1
+		} } } } } } } } }
+	}
+
+	if shuffle = 1 {
+
+		special = 0
+
+		if total != 0 { // ゾロ目の場合 [special] を +1
+			if object >= 2 { special = 0 : if dice_1 = dice_2 { special += 1 } else { goto *Finish_Calc }
+			if object >= 3 { special = 0 : if dice_2 = dice_3 { special += 1 } else { goto *Finish_Calc }
+			if object >= 4 { special = 0 : if dice_3 = dice_4 { special += 1 } else { goto *Finish_Calc }
+			if object >= 5 { special = 0 : if dice_4 = dice_5 { special += 1 } else { goto *Finish_Calc }
+			if object >= 6 { special = 0 : if dice_5 = dice_6 { special += 1 } else { goto *Finish_Calc }
+			if object >= 7 { special = 0 : if dice_6 = dice_7 { special += 1 } else { goto *Finish_Calc }
+			if object >= 8 { special = 0 : if dice_7 = dice_8 { special += 1 } else { goto *Finish_Calc }
+			if object >= 9 { special = 0 : if dice_8 = dice_9 { special += 1 } else { goto *Finish_Calc }
+			} } } } } } } }
+		}
+
+		*Finish_Calc
+
+		if total =  2 : special += 2 // 素数の場合 [special] を +2
+		if total =  3 : special += 2
+		if total =  5 : special += 2
+		if total =  7 : special += 2
+		if total = 11 : special += 2
+		if total = 13 : special += 2
+		if total = 17 : special += 2
+		if total = 19 : special += 2
+		if total = 23 : special += 2
+		if total = 29 : special += 2
+		if total = 31 : special += 2
+		if total = 37 : special += 2
+		if total = 41 : special += 2
+		if total = 43 : special += 2
+		if total = 47 : special += 2
+		if total = 53 : special += 2
+
+	}
+
+	font Font_Name , 16 , 1
+
+	color 255,255,255
+	pos 0*ChipSize+4-1,14*ChipSize-1
+	mes "Total : " + total
+	color 255,255,255
+	pos 0*ChipSize+4  ,14*ChipSize-1
+	mes "Total : " + total
+	color 255,255,255
+	pos 0*ChipSize+4+1,14*ChipSize-1
+	mes "Total : " + total
+	color 255,255,255
+	pos 0*ChipSize+4-1,14*ChipSize
+	mes "Total : " + total
+	color 255,255,255
+	pos 0*ChipSize+4  ,14*ChipSize
+	mes "Total : " + total
+	color 255,255,255
+	pos 0*ChipSize+4+1,14*ChipSize
+	mes "Total : " + total
+	color 255,255,255
+	pos 0*ChipSize+4-1,14*ChipSize+1
+	mes "Total : " + total
+	color 255,255,255
+	pos 0*ChipSize+4  ,14*ChipSize+1
+	mes "Total : " + total
+	color 255,255,255
+	pos 0*ChipSize+4+1,14*ChipSize+1
+	mes "Total : " + total
+
+	if shuffle = 0 {
+		switch special
+			case 0 : color 0,0,0 : swbreak // 通常の場合、文字を黒色
+			case 1 : color 255,0,0 : swbreak // ゾロ目の場合、文字を赤色
+			case 2 : color 0,0,255 : swbreak // 素数の場合、文字を青色
+			case 3 : color 255,0,255 : swbreak // ゾロ目＆素数の場合、文字を緑色
+		swend
+	} else { color 128,128,128 } // シャッフル時は常に文字を黒色
+	pos 0*ChipSize+4,14*ChipSize
+	mes "Total : " + total
+
+	font Font_Name , 16
+
+return
+
+//================================================================
+// サイコロを描画
+//================================================================
+
+*drawDice
+
+	if object = 1 { // サイコロが1個の場合
+
+		gmode 2
+		pos 8*ChipSize,6*ChipSize+vibe_1-8
+		gcopy 1 , dice_1*64,0 , 64,64
+
+	}
+
+	if object = 2 { // サイコロが2個の場合
+
+		gmode 2
+		pos 5*ChipSize,6*ChipSize+vibe_1-8
+		gcopy 1 , dice_1*64,0 , 64,64
+
+		gmode 2
+		pos 11*ChipSize,6*ChipSize+vibe_2-8
+		gcopy 1 , dice_2*64,0 , 64,64
+
+	}
+
+	if object = 3 { // サイコロが3個の場合
+
+		gmode 2
+		pos 2*ChipSize,6*ChipSize+vibe_1-8
+		gcopy 1 , dice_1*64,0 , 64,64
+
+		gmode 2
+		pos 8*ChipSize,6*ChipSize+vibe_2-8
+		gcopy 1 , dice_2*64,0 , 64,64
+
+		gmode 2
+		pos 14*ChipSize,6*ChipSize+vibe_3-8
+		gcopy 1 , dice_3*64,0 , 64,64
+
+	}
+
+	if object = 4 { // サイコロが4個の場合
+
+		gmode 2
+		pos 5*ChipSize,3*ChipSize+vibe_1
+		gcopy 1 , dice_1*64,0 , 64,64
+
+		gmode 2
+		pos 11*ChipSize,3*ChipSize+vibe_2
+		gcopy 1 , dice_2*64,0 , 64,64
+
+		gmode 2
+		pos 5*ChipSize,8*ChipSize+vibe_3
+		gcopy 1 , dice_3*64,0 , 64,64
+
+		gmode 2
+		pos 11*ChipSize,8*ChipSize+vibe_4
+		gcopy 1 , dice_4*64,0 , 64,64
+
+	}
+
+	if object = 5 { // サイコロが5個の場合
+
+		gmode 2
+		pos 2*ChipSize,3*ChipSize+vibe_1
+		gcopy 1 , dice_1*64,0 , 64,64
+
+		gmode 2
+		pos 8*ChipSize,6*ChipSize+vibe_2-8
+		gcopy 1 , dice_2*64,0 , 64,64
+
+		gmode 2
+		pos 14*ChipSize,3*ChipSize+vibe_3
+		gcopy 1 , dice_3*64,0 , 64,64
+
+		gmode 2
+		pos 2*ChipSize,8*ChipSize+vibe_4
+		gcopy 1 , dice_4*64,0 , 64,64
+
+		gmode 2
+		pos 14*ChipSize,8*ChipSize+vibe_5
+		gcopy 1 , dice_5*64,0 , 64,64
+
+	}
+
+	if object = 6 { // サイコロが6個の場合
+
+		gmode 2
+		pos 2*ChipSize,3*ChipSize+vibe_1
+		gcopy 1 , dice_1*64,0 , 64,64
+
+		gmode 2
+		pos 8*ChipSize,3*ChipSize+vibe_2
+		gcopy 1 , dice_2*64,0 , 64,64
+
+		gmode 2
+		pos 14*ChipSize,3*ChipSize+vibe_3
+		gcopy 1 , dice_3*64,0 , 64,64
+
+		gmode 2
+		pos 2*ChipSize,8*ChipSize+vibe_4
+		gcopy 1 , dice_4*64,0 , 64,64
+
+		gmode 2
+		pos 8*ChipSize,8*ChipSize+vibe_5
+		gcopy 1 , dice_5*64,0 , 64,64
+
+		gmode 2
+		pos 14*ChipSize,8*ChipSize+vibe_6
+		gcopy 1 , dice_6*64,0 , 64,64
+
+	}
+
+	if object = 7 { // サイコロが7個の場合
+
+		gmode 2
+		pos 2*ChipSize,3*ChipSize+vibe_1
+		gcopy 1 , dice_1*64,0 , 64,64
+
+		gmode 2
+		pos 8*ChipSize,1*ChipSize+vibe_2-8
+		gcopy 1 , dice_2*64,0 , 64,64
+
+		gmode 2
+		pos 14*ChipSize,3*ChipSize+vibe_3
+		gcopy 1 , dice_3*64,0 , 64,64
+
+		gmode 2
+		pos 2*ChipSize,8*ChipSize+vibe_4
+		gcopy 1 , dice_4*64,0 , 64,64
+
+		gmode 2
+		pos 8*ChipSize,6*ChipSize+vibe_5-8
+		gcopy 1 , dice_5*64,0 , 64,64
+
+		gmode 2
+		pos 14*ChipSize,8*ChipSize+vibe_6
+		gcopy 1 , dice_6*64,0 , 64,64
+
+		gmode 2
+		pos 8*ChipSize,11*ChipSize+vibe_7-8
+		gcopy 1 , dice_7*64,0 , 64,64
+
+	}
+
+	if object = 8 { // サイコロが8個の場合
+
+		gmode 2
+		pos 2*ChipSize,1*ChipSize+vibe_1-8
+		gcopy 1 , dice_1*64,0 , 64,64
+
+		gmode 2
+		pos 8*ChipSize,3*ChipSize+vibe_2
+		gcopy 1 , dice_2*64,0 , 64,64
+
+		gmode 2
+		pos 14*ChipSize,1*ChipSize+vibe_3-8
+		gcopy 1 , dice_3*64,0 , 64,64
+
+		gmode 2
+		pos 2*ChipSize,6*ChipSize+vibe_4-8
+		gcopy 1 , dice_4*64,0 , 64,64
+
+		gmode 2
+		pos 8*ChipSize,8*ChipSize+vibe_5
+		gcopy 1 , dice_5*64,0 , 64,64
+
+		gmode 2
+		pos 14*ChipSize,6*ChipSize+vibe_6-8
+		gcopy 1 , dice_6*64,0 , 64,64
+
+		gmode 2
+		pos 2*ChipSize,11*ChipSize+vibe_7-8
+		gcopy 1 , dice_7*64,0 , 64,64
+
+		gmode 2
+		pos 14*ChipSize,11*ChipSize+vibe_8-8
+		gcopy 1 , dice_8*64,0 , 64,64
+
+	}
+
+	if object = 9 { // サイコロが9個の場合
+
+		gmode 2
+		pos 2*ChipSize,1*ChipSize+vibe_1-8
+		gcopy 1 , dice_1*64,0 , 64,64
+
+		gmode 2
+		pos 8*ChipSize,1*ChipSize+vibe_2-8
+		gcopy 1 , dice_2*64,0 , 64,64
+
+		gmode 2
+		pos 14*ChipSize,1*ChipSize+vibe_3-8
+		gcopy 1 , dice_3*64,0 , 64,64
+
+		gmode 2
+		pos 2*ChipSize,6*ChipSize+vibe_4-8
+		gcopy 1 , dice_4*64,0 , 64,64
+
+		gmode 2
+		pos 8*ChipSize,6*ChipSize+vibe_5-8
+		gcopy 1 , dice_5*64,0 , 64,64
+
+		gmode 2
+		pos 14*ChipSize,6*ChipSize+vibe_6-8
+		gcopy 1 , dice_6*64,0 , 64,64
+
+		gmode 2
+		pos 2*ChipSize,11*ChipSize+vibe_7-8
+		gcopy 1 , dice_7*64,0 , 64,64
+
+		gmode 2
+		pos 8*ChipSize,11*ChipSize+vibe_8-8
+		gcopy 1 , dice_8*64,0 , 64,64
+
+		gmode 2
+		pos 14*ChipSize,11*ChipSize+vibe_9-8
+		gcopy 1 , dice_9*64,0 , 64,64
+
+	}
+
+return
+
+//================================================================
+// サイコロをシャッフル
+//================================================================
+
+*shuffleDice
+
+	getkey shuffle , 32 // SPACEキーが押されたかどうか
+
+	if shuffle = 1 { // サイコロの値をシャッフル
+		if object >= 1 { dice_1 = rnd(5)+rnd(5)
+		if object >= 2 { dice_2 = rnd(5)+rnd(5)+rnd(5)
+		if object >= 3 { dice_3 = rnd(5)+rnd(5)+rnd(5)+rnd(5)
+		if object >= 4 { dice_4 = rnd(5)+rnd(5)
+		if object >= 5 { dice_5 = rnd(5)+rnd(5)+rnd(5)
+		if object >= 6 { dice_6 = rnd(5)+rnd(5)+rnd(5)+rnd(5)
+		if object >= 7 { dice_7 = rnd(5)+rnd(5)
+		if object >= 8 { dice_8 = rnd(5)+rnd(5)+rnd(5)
+		if object >= 9 { dice_9 = rnd(5)+rnd(5)+rnd(5)+rnd(5)
+		} } } } } } } } }
+		if dice_1 >= 6 : dice_1 -= 6
+		if dice_2 >= 6 : dice_2 -= 6 : if dice_2 >= 6 : dice_2 -= 6
+		if dice_3 >= 6 : dice_3 -= 6 : if dice_3 >= 6 : dice_3 -= 6 : if dice_3 >= 6 : dice_3 -= 6
+		if dice_4 >= 6 : dice_4 -= 6
+		if dice_5 >= 6 : dice_5 -= 6 : if dice_5 >= 6 : dice_5 -= 6
+		if dice_6 >= 6 : dice_6 -= 6 : if dice_6 >= 6 : dice_6 -= 6 : if dice_6 >= 6 : dice_6 -= 6
+		if dice_7 >= 6 : dice_7 -= 6
+		if dice_8 >= 6 : dice_8 -= 6 : if dice_8 >= 6 : dice_8 -= 6
+		if dice_9 >= 6 : dice_9 -= 6 : if dice_9 >= 6 : dice_9 -= 6 : if dice_9 >= 6 : dice_9 -= 6
+	}
+
+	if shuffle = 1 { // サイコロをブルブル＆シャッフル音
+		switch frame
+			case 0 : vibe_1 = -2 : vibe_2 =  0 : vibe_3 =  2 : 
+			         vibe_4 =  0 : vibe_5 = -2 : vibe_6 =  0 : 
+			         vibe_7 =  2 : vibe_8 =  0 : vibe_9 = -2 : frame = 1 : swbreak
+			case 1 : vibe_1 =  0 : vibe_2 = -2 : vibe_3 =  0 : 
+			         vibe_4 =  2 : vibe_5 =  0 : vibe_6 = -2 : 
+			         vibe_7 =  0 : vibe_8 =  2 : vibe_9 =  0 : frame = 2 : swbreak
+			case 2 : vibe_1 =  2 : vibe_2 =  0 : vibe_3 = -2 : 
+			         vibe_4 =  0 : vibe_5 =  2 : vibe_6 =  0 : 
+			         vibe_7 = -2 : vibe_8 =  0 : vibe_9 =  2 : frame = 3 : swbreak
+			case 3 : vibe_1 =  0 : vibe_2 =  2 : vibe_3 =  0 : 
+			         vibe_4 = -2 : vibe_5 =  0 : vibe_6 =  2 : 
+			         vibe_7 =  0 : vibe_8 = -2 : vibe_9 =  0 : frame = 0 : swbreak
+		swend
+		if frame = 0 {
+			switch sound_frame
+				case 0 : mmplay 1 : sound_frame = 1 : swbreak
+				case 1 : sound_frame = 2 : swbreak
+				case 2 : mmplay 1 : sound_frame = 3 : swbreak
+				case 3 : sound_frame = 0 : swbreak
+			swend
+		}
+	} else {
+		vibe_1 = 0 : vibe_2 = 0 : vibe_3 = 0 : vibe_4 = 0 : vibe_5 = 0 : vibe_6 = 0 : vibe_7 = 0 : vibe_8 = 0 : vibe_9 = 0
+	}
+
+	if shuffle = 1 : stop_trigger = 1
+	if shuffle = 0 & stop_trigger = 1 { // シャッフルが終わった場合、ストップの音を出す
+		mmplay 2
+		stop_trigger = 0
+	}
+
+return
+
+//================================================================
+// 操作
+//================================================================
+
+*commandDice
+
+	check_key = 0
+
+	if key != 0 : check_key = 1
+
+	stick key , 15 // 矢印キーを使用
+
+		if check_key = 0 {
+
+			switch key
+
+				case 1 // ←
+					if object >= 2 {
+						object -= 1
+						dice_1 = 0
+						dice_2 = 0
+						dice_3 = 0
+						dice_4 = 0
+						dice_5 = 0
+						dice_6 = 0
+						dice_7 = 0
+						dice_8 = 0
+						dice_9 = 0
+						total = 0
+						special = 0
+						mmplay 3
+					}
+				swbreak
+
+				case 4 // →
+					if object <= 8 {
+						object += 1
+						dice_1 = 0
+						dice_2 = 0
+						dice_3 = 0
+						dice_4 = 0
+						dice_5 = 0
+						dice_6 = 0
+						dice_7 = 0
+						dice_8 = 0
+						dice_9 = 0
+						total = 0
+						special = 0
+						mmplay 3
+					}
+				swbreak
+
+				case 32 // ENTER
+					dice_1 = 0
+					dice_2 = 0
+					dice_3 = 0
+					dice_4 = 0
+					dice_5 = 0
+					dice_6 = 0
+					dice_7 = 0
+					dice_8 = 0
+					dice_9 = 0
+					total = 0
+					special = 0
+					mmplay 3
+				swbreak
+
+				case 128 // ESC
+					switch description
+						case 0 : description = 1 : swbreak
+						case 1 : description = 0 : swbreak
+					swend
+				swbreak
+
+			swend
+
+		}
+
+return
